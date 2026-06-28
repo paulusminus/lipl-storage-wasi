@@ -1,0 +1,6 @@
+package pm:console-logger@0.1.0;
+
+world exports {
+    import wasi:clocks/system-clock@0.3.0;
+    export wasi:logging/logging@0.1.0-draft;
+}

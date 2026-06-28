@@ -1,0 +1,54 @@
+package pm:lipl-core@0.3.0;
+
+interface types {
+    record lyric {
+        id: string,
+        title: string,
+        parts: list<list<string>>,
+    }
+
+    record playlist {
+        id: string,
+        title: string,
+        members: list<string>
+    }
+
+    variant error {
+        unknown,
+        parse,
+        io(string),
+        utf8(string),
+        not-found(string),
+        parse-frontmatter(string),
+        toml(string),
+    }
+
+    resource store {
+        constructor();
+        get-lyrics: async func() -> result<list<lyric>, error>;
+        get-lyric: async func(id: string) -> result<lyric, error>;
+        upsert-lyric: async func(lyric: lyric) -> result<_, error>;
+        delete-lyric: async func(id: string) -> result<_, error>;
+        get-playlists: async func() -> result<list<playlist>, error>;
+        get-playlist: async func(id: string) -> result<playlist, error>;
+        upsert-playlist: async func(playlist: playlist) -> result<_, error>;
+        delete-playlist: async func(id: string) -> result<_, error>;
+    }
+}
+
+world storage {
+    export types;
+}
+
+world storage-fs {
+    import wasi:filesystem/types@0.3.0;
+    import wasi:filesystem/preopens@0.3.0;
+    export types;
+}
+
+world command {
+    import types;
+    import wasi:cli/stdout@0.3.0;
+    import wasi:logging/logging@0.1.0-draft;
+    export wasi:cli/run@0.3.0;
+}
