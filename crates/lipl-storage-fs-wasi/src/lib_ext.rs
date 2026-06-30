@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::{marker::PhantomData, path::Path};
 use wit_bindgen::block_on;
 
+use crate::bindings;
 use crate::bindings::exports::pm::lipl_core::types::{Error, Lyric, Playlist};
 use crate::{
     ErrInto, LyricMeta,
@@ -80,6 +81,19 @@ impl<T> File<T> {
         String::from_utf8(contents).err_into()
     }
 
+    pub async fn write_contents(&self, contents: String) -> Result<(), Error> {
+        let (mut writer, reader) = bindings::wit_stream::new::<u8>();
+        wit_bindgen::spawn_local(async move {
+            writer.write_all(contents.as_bytes().to_vec()).await;
+            drop(writer);
+        });
+        self.descriptor
+            .write_via_stream(reader, 0)
+            .await
+            .err_into()?;
+        Ok(())
+    }
+
     pub fn id(&self) -> String {
         Path::new(&self.name)
             .file_stem()
@@ -140,13 +154,21 @@ impl Directory {
             .map_err(|error_code| Error::Io(error_code.to_string()))
     }
 
-    pub async fn open_file<T>(&self, name: String) -> Result<File<T>, Error> {
+    pub async fn open_file<T>(&self, name: String, writable: bool) -> Result<File<T>, Error> {
         self.descriptor
             .open_at(
                 PathFlags::empty(),
                 name.clone(),
-                OpenFlags::empty(),
-                DescriptorFlags::READ,
+                if writable {
+                    OpenFlags::CREATE | OpenFlags::TRUNCATE
+                } else {
+                    OpenFlags::empty()
+                },
+                if writable {
+                    DescriptorFlags::READ | DescriptorFlags::WRITE
+                } else {
+                    DescriptorFlags::READ
+                },
             )
             .await
             .err_into()
@@ -157,16 +179,12 @@ impl Directory {
             })
     }
 
-    // pub async fn get_file<T: 'static>(&self, name: &str) -> Result<File<T>, Error> {
-    //     self.open_file::<T>(name.to_owned()).await
-    // }
-
     pub async fn get_files<T: 'static>(&self, suffix: &str) -> Result<Vec<File<T>>, Error> {
         let filter = file_has_suffix(suffix);
         let entries = self.get_entries(filter).await?;
         entries
             .into_iter()
-            .map(|entry| block_on(self.open_file::<T>(entry.name)))
+            .map(|entry| block_on(self.open_file::<T>(entry.name, false)))
             .collect()
     }
 }

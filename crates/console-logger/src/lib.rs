@@ -2,7 +2,10 @@ use bindings::exports::wasi::logging::logging::Level;
 use bindings::wasi::clocks::system_clock::now;
 
 mod bindings {
-    wit_bindgen::generate!({ generate_all });
+    wit_bindgen::generate!({ world: "exports", with: {
+        "wasi:clocks/system-clock@0.3.0": generate,
+        "wasi:clocks/types@0.3.0": generate,
+    } });
     use super::Component;
     export!(Component);
 }
@@ -10,7 +13,7 @@ mod bindings {
 struct Component;
 
 impl bindings::exports::wasi::logging::logging::Guest for Component {
-    fn log(level: Level, _: String, message: String) {
+    fn log(level: Level, context: String, message: String) {
         let level_str = match level {
             Level::Critical => "critical",
             Level::Error => "error",
@@ -28,6 +31,6 @@ impl bindings::exports::wasi::logging::logging::Guest for Component {
         let timestamp = std::time::UNIX_EPOCH + duration;
         let timestamp = chrono::DateTime::<chrono::Utc>::from(timestamp);
 
-        println!("{} {}", timestamp, message);
+        println!("{}: {} {}", context, timestamp, message);
     }
 }

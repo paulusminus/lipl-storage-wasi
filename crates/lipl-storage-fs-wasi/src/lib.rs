@@ -7,7 +7,7 @@ use crate::{
     constant::{MARKDOWN_EXTENSION, TOML_EXTENSION},
     error::ErrInto,
     lib_ext::Directory,
-    part::extract_delimited_frontmatter,
+    part::{extract_delimited_frontmatter, to_text},
 };
 use bindings::wasi::filesystem::types::Descriptor;
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,9 @@ mod error;
 mod lib_ext;
 mod part;
 
+#[allow(dead_code)]
+const PKG_NAME: &str = env!("CARGO_PKG_NAME");
+
 mod bindings {
     wit_bindgen::generate!({ path: "../../wit", world: "storage-fs", generate_all });
     use super::Component;
@@ -27,7 +30,8 @@ mod bindings {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct LyricMeta {
     pub title: String,
-    pub hash: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash: Option<String>,
 }
 
 pub struct LyricPost {
@@ -56,6 +60,15 @@ struct Component;
 
 impl bindings::exports::pm::lipl_core::types::Guest for Component {
     type Store = Store;
+
+    fn to_stream(what: String) -> Result<wit_bindgen::rt::async_support::StreamReader<u8>, Error> {
+        let (mut writer, reader) = bindings::wit_stream::new::<u8>();
+        wit_bindgen::spawn_local(async move {
+            writer.write_all(what.as_bytes().to_vec()).await;
+            drop(writer);
+        });
+        Ok(reader)
+    }
 }
 
 #[allow(dead_code)]
@@ -78,21 +91,39 @@ impl GuestStore for Store {
             .directory
             .get_files::<Lyric>(MARKDOWN_EXTENSION)
             .await?;
-        lyric_files.into_iter().map(Lyric::try_from).collect()
+        lyric_files.into_iter().map(TryFrom::try_from).collect()
     }
 
     async fn get_lyric(&self, id: String) -> Result<Lyric, Error> {
         self.directory
-            .open_file::<Lyric>(format!("{id}{MARKDOWN_EXTENSION}"))
+            .open_file::<Lyric>(format!("{id}{MARKDOWN_EXTENSION}"), false)
             .await
             .and_then(TryFrom::try_from)
     }
 
-    async fn upsert_lyric(&self, _lyric: Lyric) -> Result<(), Error> {
-        todo!()
+    async fn upsert_lyric(&self, lyric: Lyric) -> Result<(), Error> {
+        let id = lyric.id.clone();
+        let lyric_meta = LyricMeta {
+            title: lyric.title.clone(),
+            hash: None,
+        };
+        let lyric_meta_toml = toml::to_string_pretty(&lyric_meta).unwrap();
+        let parts = to_text(&lyric.parts);
+        let content = format!("+++\n{}+++\n\n{}", lyric_meta_toml, parts);
+        let file = self
+            .directory
+            .open_file::<Lyric>(format!("{id}{MARKDOWN_EXTENSION}"), true)
+            .await?;
+        file.write_contents(content).await
     }
 
     async fn delete_lyric(&self, id: String) -> Result<(), Error> {
+        for mut playlist in self.get_playlists().await? {
+            if playlist.members.contains(&id) {
+                playlist.members.retain(|l| l != &id);
+                self.upsert_playlist(playlist).await?;
+            }
+        }
         self.directory
             .delete_entry(format!("{id}{MARKDOWN_EXTENSION}"))
             .await
@@ -105,7 +136,7 @@ impl GuestStore for Store {
 
     async fn get_playlist(&self, id: String) -> Result<Playlist, Error> {
         self.directory
-            .open_file::<Playlist>(format!("{id}{TOML_EXTENSION}"))
+            .open_file::<Playlist>(format!("{id}{TOML_EXTENSION}"), false)
             .await
             .and_then(TryFrom::try_from)
     }
