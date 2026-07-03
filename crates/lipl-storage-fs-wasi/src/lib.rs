@@ -22,7 +22,17 @@ mod part;
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
 mod bindings {
-    wit_bindgen::generate!({ path: "../../wit", world: "storage-fs", generate_all });
+    wit_bindgen::generate!({
+        path: "../../wit",
+        world: "storage-fs",
+        with: {
+            "wasi:clocks/types@0.3.0": generate,
+            "wasi:clocks/system-clock@0.3.0": generate,
+            "wasi:filesystem/types@0.3.0": generate,
+            "wasi:filesystem/preopens@0.3.0": generate,
+        },
+        additional_derives: [serde::Deserialize, serde::Serialize]
+    });
     use super::Component;
     export!(Component);
 }
@@ -60,15 +70,6 @@ struct Component;
 
 impl bindings::exports::pm::lipl_core::types::Guest for Component {
     type Store = Store;
-
-    fn to_stream(what: String) -> Result<wit_bindgen::rt::async_support::StreamReader<u8>, Error> {
-        let (mut writer, reader) = bindings::wit_stream::new::<u8>();
-        wit_bindgen::spawn_local(async move {
-            writer.write_all(what.as_bytes().to_vec()).await;
-            drop(writer);
-        });
-        Ok(reader)
-    }
 }
 
 #[allow(dead_code)]

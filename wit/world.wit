@@ -34,8 +34,6 @@ interface types {
         upsert-playlist: async func(playlist: playlist) -> result<_, error>;
         delete-playlist: async func(id: string) -> result<_, error>;
     }
-
-    to-stream: func(what: string) -> result<stream<u8>, error>;
 }
 
 world storage {
@@ -53,4 +51,9 @@ world command {
     import wasi:cli/stdout@0.3.0;
     import wasi:logging/logging@0.1.0-draft;
     export wasi:cli/run@0.3.0;
+}
+
+world server {
+    import types;
+    export wasi:http/handler@0.3.0;
 }
