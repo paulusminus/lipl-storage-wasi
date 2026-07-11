@@ -1,3 +1,4 @@
 [dependencies]
 wasi-logging = "0.1.0-draft"
 wasi-clocks = "0.3.0"
+wasi-cli = "0.3.0"
