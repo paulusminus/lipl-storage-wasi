@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/console-logger","crates/lipl-run", "crates/lipl-storage-fs-wasi", "crates/server"]
+members = ["crates/console-logger","crates/lipl-run", "crates/lipl-storage-fs-wasi"]
 
 [profile.release]
 lto = true

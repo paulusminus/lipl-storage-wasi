@@ -1,4 +1,4 @@
-package pm:lipl-core@0.3.1;
+package pm:lipl-core@0.3.2;
 
 interface types {
     record lyric {
@@ -10,7 +10,12 @@ interface types {
     record playlist {
         id: string,
         title: string,
-        members: list<string>
+        members: list<string>,
+    }
+
+    record db {
+        lyrics: list<lyric>,
+        playlists: list<playlist>,
     }
 
     variant error {
