@@ -3,7 +3,7 @@ use std::fmt::Display;
 use bindings::exports::wasi::logging::logging::Level;
 use bindings::wasi::cli::stdout;
 use bindings::wasi::clocks::system_clock::now;
-use wit_bindgen::spawn_local;
+use wit_bindgen::{block_on, spawn_local};
 
 use crate::bindings::wasi::cli::stderr;
 use crate::bindings::wit_stream;
@@ -28,9 +28,13 @@ fn println<D: Display>(d: D, is_error: bool) {
         drop(writer);
     });
     if is_error {
-        stdout::write_via_stream(reader);
+        block_on(async move {
+            stdout::write_via_stream(reader).await.unwrap();
+        });
     } else {
-        stderr::write_via_stream(reader);
+        block_on(async move {
+            stderr::write_via_stream(reader).await.unwrap();
+        });
     }
 }
 

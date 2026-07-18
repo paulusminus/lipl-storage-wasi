@@ -1,4 +1,4 @@
-package pm:lipl-core@0.3.2;
+package pm:lipl-core@0.3.4;
 
 interface types {
     record lyric {
@@ -28,17 +28,15 @@ interface types {
         toml(string),
     }
 
-    resource store {
-        constructor();
-        get-lyrics: async func() -> result<list<lyric>, error>;
-        get-lyric: async func(id: string) -> result<lyric, error>;
-        upsert-lyric: async func(lyric: lyric) -> result<_, error>;
-        delete-lyric: async func(id: string) -> result<_, error>;
-        get-playlists: async func() -> result<list<playlist>, error>;
-        get-playlist: async func(id: string) -> result<playlist, error>;
-        upsert-playlist: async func(playlist: playlist) -> result<_, error>;
-        delete-playlist: async func(id: string) -> result<_, error>;
-    }
+    get-lyrics: async func() -> result<list<lyric>, error>;
+    get-lyric: async func(id: string) -> result<lyric, error>;
+    upsert-lyric: async func(lyric: lyric) -> result<_, error>;
+    delete-lyric: async func(id: string) -> result<_, error>;
+    get-playlists: async func() -> result<list<playlist>, error>;
+    get-playlist: async func(id: string) -> result<playlist, error>;
+    upsert-playlist: async func(playlist: playlist) -> result<_, error>;
+    delete-playlist: async func(id: string) -> result<_, error>;
+    get-count: func() -> u64;
 }
 
 world storage {

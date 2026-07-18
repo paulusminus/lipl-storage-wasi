@@ -1,6 +1,7 @@
 use bindings::exports::wasi::cli::run;
-use bindings::pm::lipl_core::types::Store;
 use bindings::wasi::logging::logging::{Level, log};
+
+use crate::bindings::pm::lipl_core::types::{get_lyrics, get_playlists, upsert_lyric};
 
 const CRATE_NAME: &str = env!("CARGO_PKG_NAME");
 
@@ -14,8 +15,7 @@ struct Component;
 
 impl run::Guest for Component {
     async fn run() -> Result<(), ()> {
-        let store = Store::new();
-        match store.get_lyrics().await {
+        match get_lyrics().await {
             Ok(lyrics) => {
                 log(
                     Level::Info,
@@ -30,7 +30,7 @@ impl run::Guest for Component {
                     );
                     if lyric.id.as_str() == "QKKvuNZBAph1JaHLs3UNtu" {
                         lyric.title = "Oh kleintje".to_owned();
-                        if store.upsert_lyric(lyric).await.is_ok() {
+                        if upsert_lyric(lyric).await.is_ok() {
                             log(
                                 Level::Info,
                                 CRATE_NAME,
@@ -48,7 +48,7 @@ impl run::Guest for Component {
                 );
             }
         }
-        if let Ok(playlists) = store.get_playlists().await {
+        if let Ok(playlists) = get_playlists().await {
             for playlist in playlists {
                 log(
                     Level::Info,
