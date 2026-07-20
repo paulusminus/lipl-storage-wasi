@@ -1,9 +1,6 @@
 #![warn(clippy::pedantic)]
 #![allow(async_fn_in_trait)]
-use std::{
-    str::FromStr,
-    sync::{LazyLock, OnceLock, RwLock},
-};
+use std::str::FromStr;
 
 use crate::{
     bindings::exports::pm::lipl_core::types::{Error, Lyric, Playlist},
@@ -14,6 +11,7 @@ use crate::{
 };
 use bindings::wasi::filesystem::types::Descriptor;
 use serde::{Deserialize, Serialize};
+use toml::Table;
 
 #[allow(dead_code)]
 mod constant;
@@ -40,6 +38,17 @@ mod bindings {
     export!(Component);
 }
 
+trait Etag {
+    fn etag(&self) -> String;
+}
+
+impl<T: Serialize> Etag for T {
+    fn etag(&self) -> String {
+        let s = toml::to_string(self).unwrap();
+        etag::EntityTag::const_from_data(s.as_bytes()).to_string()
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct LyricMeta {
     pub title: String,
@@ -47,9 +56,62 @@ pub struct LyricMeta {
     pub hash: Option<String>,
 }
 
+impl From<Lyric> for LyricMeta {
+    fn from(lyric: Lyric) -> Self {
+        let hash = lyric.etag();
+        Self {
+            title: lyric.title,
+            hash: Some(hash),
+        }
+    }
+}
+
 pub struct LyricPost {
     pub title: String,
     pub parts: Vec<Vec<String>>,
+}
+
+#[allow(dead_code)]
+fn from_playlist_to_toml(playlist: &Playlist) -> Result<String, Error> {
+    let mut toml = toml::Table::new();
+    toml.insert(
+        "title".to_owned(),
+        toml::Value::String(playlist.title.clone()),
+    );
+    toml.insert(
+        "members".to_owned(),
+        toml::Value::Array(
+            playlist
+                .members
+                .iter()
+                .map(|m| toml::Value::String(m.clone()))
+                .collect::<Vec<_>>()
+                .into(),
+        ),
+    );
+    toml::to_string(&toml).map_err(|_| Error::Parse)
+}
+
+#[allow(dead_code)]
+fn from_toml_to_playlist(s: &str, id: String) -> Result<Playlist, Error> {
+    let post: Table = toml::from_str(s)?;
+    let title = post
+        .get("title")
+        .and_then(|v| v.as_str())
+        .ok_or(Error::Parse)?;
+    let members = post
+        .get("members")
+        .and_then(|v| v.as_array())
+        .ok_or(Error::Parse)?;
+    let members = members
+        .iter()
+        .map(|v| v.as_str().map(String::from).ok_or(Error::Parse))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Playlist {
+        id,
+        title: title.to_owned(),
+        members,
+    })
 }
 
 impl FromStr for LyricPost {
@@ -69,15 +131,13 @@ struct Component;
 
 impl bindings::exports::pm::lipl_core::types::Guest for Component {
     async fn get_lyrics() -> Result<Vec<Lyric>, Error> {
-        increment();
-        let directory = DIRECTORY.get_or_init(|| Directory::new_root().unwrap());
+        let directory = Directory::new_root()?;
         let lyric_files = directory.get_files::<Lyric>(MARKDOWN_EXTENSION).await?;
         lyric_files.into_iter().map(TryFrom::try_from).collect()
     }
 
     async fn get_lyric(id: String) -> Result<Lyric, Error> {
-        increment();
-        let directory = DIRECTORY.get_or_init(|| Directory::new_root().unwrap());
+        let directory = Directory::new_root()?;
         directory
             .open_file::<Lyric>(format!("{id}{MARKDOWN_EXTENSION}"), false)
             .await
@@ -85,16 +145,12 @@ impl bindings::exports::pm::lipl_core::types::Guest for Component {
     }
 
     async fn upsert_lyric(lyric: Lyric) -> Result<(), Error> {
-        increment();
-        let directory = DIRECTORY.get_or_init(|| Directory::new_root().unwrap());
+        let directory = Directory::new_root()?;
         let id = lyric.id.clone();
-        let lyric_meta = LyricMeta {
-            title: lyric.title.clone(),
-            hash: None,
-        };
-        let lyric_meta_toml = toml::to_string_pretty(&lyric_meta).unwrap();
         let parts = to_text(&lyric.parts);
-        let content = format!("+++\n{}+++\n\n{}", lyric_meta_toml, parts);
+        let lyric_meta: LyricMeta = lyric.into();
+        let lyric_meta_toml = toml::to_string_pretty(&lyric_meta).unwrap();
+        let content = format!("+++\n{lyric_meta_toml}+++\n\n{parts}");
         let file = directory
             .open_file::<Lyric>(format!("{id}{MARKDOWN_EXTENSION}"), true)
             .await?;
@@ -102,8 +158,7 @@ impl bindings::exports::pm::lipl_core::types::Guest for Component {
     }
 
     async fn delete_lyric(id: String) -> Result<(), Error> {
-        increment();
-        let directory = DIRECTORY.get_or_init(|| Directory::new_root().unwrap());
+        let directory = Directory::new_root()?;
         for mut playlist in Component::get_playlists().await? {
             if playlist.members.contains(&id) {
                 playlist.members.retain(|l| l != &id);
@@ -116,15 +171,13 @@ impl bindings::exports::pm::lipl_core::types::Guest for Component {
     }
 
     async fn get_playlists() -> Result<Vec<Playlist>, Error> {
-        increment();
-        let directory = DIRECTORY.get_or_init(|| Directory::new_root().unwrap());
+        let directory = Directory::new_root()?;
         let lyric_files = directory.get_files::<Playlist>(TOML_EXTENSION).await?;
         lyric_files.into_iter().map(TryFrom::try_from).collect()
     }
 
     async fn get_playlist(id: String) -> Result<Playlist, Error> {
-        increment();
-        let directory = DIRECTORY.get_or_init(|| Directory::new_root().unwrap());
+        let directory = Directory::new_root()?;
         directory
             .open_file::<Playlist>(format!("{id}{TOML_EXTENSION}"), false)
             .await
@@ -132,10 +185,9 @@ impl bindings::exports::pm::lipl_core::types::Guest for Component {
     }
 
     async fn upsert_playlist(playlist: Playlist) -> Result<(), Error> {
-        increment();
         let id = playlist.id.clone();
         let content = toml::to_string_pretty(&playlist).unwrap();
-        let directory = DIRECTORY.get_or_init(|| Directory::new_root().unwrap());
+        let directory = Directory::new_root()?;
         let file = directory
             .open_file::<Playlist>(format!("{id}{TOML_EXTENSION}"), true)
             .await?;
@@ -143,15 +195,14 @@ impl bindings::exports::pm::lipl_core::types::Guest for Component {
     }
 
     async fn delete_playlist(id: String) -> Result<(), Error> {
-        increment();
-        let directory = DIRECTORY.get_or_init(|| Directory::new_root().unwrap());
+        let directory = Directory::new_root()?;
         directory
-            .delete_entry(format!("{}{}", id, TOML_EXTENSION))
+            .delete_entry(format!("{id}{TOML_EXTENSION}"))
             .await
     }
 
     fn get_count() -> u64 {
-        read()
+        Default::default()
     }
 }
 
@@ -162,16 +213,3 @@ async fn get_content(file: &Descriptor) -> Result<String, Error> {
     terminate.await?;
     String::from_utf8(contents).err_into()
 }
-
-static DIRECTORY: OnceLock<Directory> = OnceLock::new();
-
-fn increment() {
-    let mut lock = TEST.write().unwrap();
-    *lock = lock.saturating_add(1);
-}
-
-fn read() -> u64 {
-    *TEST.read().unwrap()
-}
-
-static TEST: LazyLock<RwLock<u64>> = LazyLock::new(|| RwLock::new(0));

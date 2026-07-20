@@ -1,17 +1,16 @@
 use crate::bindings::exports::pm::lipl_core::types::Error;
 
-#[allow(dead_code)]
 pub fn to_parts<S>(s: S) -> Vec<Vec<String>>
 where
-    S: ToString,
+    S: AsRef<str>,
 {
-    s.to_string()
+    s.as_ref()
         .split('\n')
         .map(str::trim)
         .map(String::from)
         .collect::<Vec<_>>()
         .split(String::is_empty)
-        .map(|part| part.to_vec())
+        .map(<[String]>::to_vec)
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
 }
@@ -25,13 +24,12 @@ pub fn to_text(parts: &[Vec<String>]) -> String {
         .join("\n\n")
 }
 
-#[allow(dead_code)]
-pub fn extract_delimited_frontmatter<'a>(content: &'a str) -> Result<(&'a str, &'a str), Error> {
+pub fn extract_delimited_frontmatter(content: &str) -> Result<(&str, &str), Error> {
     let indexes = content.split("+++\n").collect::<Vec<_>>();
     if indexes.len() == 3 {
-        Ok((&indexes[1], &indexes[2]))
+        Ok((indexes[1], indexes[2]))
     } else {
-        Err(Error::NotFound("".to_owned()))
+        Err(Error::NotFound(String::new()))
     }
 }
 

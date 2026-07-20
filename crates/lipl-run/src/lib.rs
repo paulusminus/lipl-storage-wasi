@@ -26,7 +26,7 @@ impl run::Guest for Component {
                     log(
                         Level::Info,
                         CRATE_NAME,
-                        &format!("{} ({})", &lyric.title, &lyric.id),
+                        &format!("{} ({})", lyric.title, lyric.id),
                     );
                     if lyric.id.as_str() == "QKKvuNZBAph1JaHLs3UNtu" {
                         lyric.title = "Oh kleintje".to_owned();
@@ -34,7 +34,7 @@ impl run::Guest for Component {
                             log(
                                 Level::Info,
                                 CRATE_NAME,
-                                &format!("Updated lyric title to 'Vader Jacobje'"),
+                                "Updated lyric title to 'Vader Jacobje'",
                             );
                         };
                     }

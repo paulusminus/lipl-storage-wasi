@@ -16,21 +16,14 @@ use crate::{
     part::{extract_delimited_frontmatter, to_parts},
 };
 
-#[allow(dead_code)]
 fn is_regular_file(entry: &DirectoryEntry) -> bool {
     matches!(entry.type_, DescriptorType::RegularFile)
-}
-
-#[allow(dead_code)]
-fn is_directory(entry: &DirectoryEntry) -> bool {
-    matches!(entry.type_, DescriptorType::Directory)
 }
 
 pub fn file_has_suffix(suffix: &str) -> impl Fn(&DirectoryEntry) -> bool {
     move |entry| is_regular_file(entry) && entry.name.ends_with(suffix)
 }
 
-#[allow(dead_code)]
 pub struct File<T> {
     pub name: String,
     pub descriptor: Descriptor,
@@ -72,7 +65,6 @@ impl TryFrom<File<Playlist>> for Playlist {
     }
 }
 
-#[allow(dead_code)]
 impl<T> File<T> {
     pub async fn contents(&self) -> Result<String, Error> {
         let (stream, terminate) = self.descriptor.read_via_stream(0);
@@ -103,28 +95,24 @@ impl<T> File<T> {
     }
 }
 
-#[allow(dead_code)]
 pub struct Directory {
-    pub name: String,
     pub descriptor: Descriptor,
 }
 
-impl From<(Descriptor, String)> for Directory {
-    fn from((descriptor, name): (Descriptor, String)) -> Self {
-        Directory { name, descriptor }
+impl From<Descriptor> for Directory {
+    fn from(descriptor: Descriptor) -> Self {
+        Directory { descriptor }
     }
 }
 
-#[allow(dead_code)]
 impl Directory {
     pub fn new_root() -> Result<Self, Error> {
         preopens::get_directories()
             .into_iter()
             .find(|(_, path)| path.as_str() == DEFAULT_PREOPEN_PATH)
-            .map(Into::into)
+            .map(|(descriptor, _)| descriptor.into())
             .ok_or(Error::Io(format!(
-                "No preopen found with path {}",
-                DEFAULT_PREOPEN_PATH
+                "No preopen found with path {DEFAULT_PREOPEN_PATH}"
             )))
     }
 
@@ -132,15 +120,15 @@ impl Directory {
         self.descriptor.unlink_file_at(name).await.err_into()
     }
 
-    pub async fn get_entry(&self, name: String) -> Result<DirectoryEntry, Error> {
-        let entries = self
-            .get_entries(|entry| is_regular_file(entry) && entry.name == name)
-            .await?;
-        entries
-            .first()
-            .cloned()
-            .ok_or(Error::Io("No entry found".to_string()))
-    }
+    // pub async fn get_entry(&self, name: String) -> Result<DirectoryEntry, Error> {
+    //     let entries = self
+    //         .get_entries(|entry| is_regular_file(entry) && entry.name == name)
+    //         .await?;
+    //     entries
+    //         .first()
+    //         .cloned()
+    //         .ok_or(Error::Io("No entry found".to_string()))
+    // }
 
     pub async fn get_entries<F>(&self, filter: F) -> Result<Vec<DirectoryEntry>, Error>
     where
@@ -148,10 +136,8 @@ impl Directory {
     {
         let (stream, terminate) = self.descriptor.read_directory();
         let entries = stream.collect().await;
-        terminate
-            .await
-            .map(|_| entries.into_iter().filter(filter).collect())
-            .map_err(|error_code| Error::Io(error_code.to_string()))
+        terminate.await?;
+        Ok(entries.into_iter().filter(filter).collect())
     }
 
     pub async fn open_file<T>(&self, name: String, writable: bool) -> Result<File<T>, Error> {

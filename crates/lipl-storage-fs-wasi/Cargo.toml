@@ -7,6 +7,7 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
+etag = "4.0.0"
 futures = "0.3.32"
 serde = { version = "1.0.228", features = ["derive"] }
 toml = "1.1.2"

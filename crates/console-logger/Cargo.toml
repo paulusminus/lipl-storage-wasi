@@ -8,4 +8,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+time = "0.3.54"
 wit-bindgen = { version = "0.59.0", features = ["bitflags", "async-spawn", "futures-stream"] }

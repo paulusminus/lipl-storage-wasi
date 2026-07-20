@@ -9,13 +9,10 @@ use crate::bindings::wasi::cli::stderr;
 use crate::bindings::wit_stream;
 
 mod bindings {
-    wit_bindgen::generate!({ world: "exports", with: {
-        "wasi:clocks/system-clock@0.3.0": generate,
-        "wasi:clocks/types@0.3.0": generate,
-        "wasi:cli/types@0.3.0": generate,
-        "wasi:cli/stdout@0.3.0": generate,
-        "wasi:cli/stderr@0.3.0": generate,
-    } });
+    wit_bindgen::generate!({
+        world: "exports",
+        generate_all,
+    });
     use super::Component;
     export!(Component);
 }
@@ -40,25 +37,33 @@ fn println<D: Display>(d: D, is_error: bool) {
 
 struct Component;
 
+fn level_to_str(level: Level) -> &'static str {
+    match level {
+        Level::Critical => "critical",
+        Level::Error => "error",
+        Level::Warn => "warning",
+        Level::Info => "info",
+        Level::Debug => "debug",
+        Level::Trace => "trace",
+    }
+}
+
+fn now_rfc3399() -> String {
+    let timestamp = now();
+    let duration = std::time::Duration::new(
+        u64::try_from(timestamp.seconds).unwrap(),
+        timestamp.nanoseconds,
+    );
+    let timestamp = std::time::UNIX_EPOCH + duration;
+    let timestamp = chrono::DateTime::<chrono::Utc>::from(timestamp);
+    timestamp.to_rfc3339()
+}
+
 impl bindings::exports::wasi::logging::logging::Guest for Component {
     fn log(level: Level, context: String, message: String) {
-        let level_str = match level {
-            Level::Critical => "critical",
-            Level::Error => "error",
-            Level::Warn => "warning",
-            Level::Info => "info",
-            Level::Debug => "debug",
-            Level::Trace => "trace",
-        };
+        let level_str = level_to_str(level);
         let message = format!("{}: {}", level_str, message);
-        let timestamp = now();
-        let duration = std::time::Duration::new(
-            u64::try_from(timestamp.seconds).unwrap(),
-            timestamp.nanoseconds,
-        );
-        let timestamp = std::time::UNIX_EPOCH + duration;
-        let timestamp = chrono::DateTime::<chrono::Utc>::from(timestamp);
 
-        println(format!("{}: {} {}", context, timestamp, message), false);
+        println(format!("{}: {} {}", context, now_rfc3399(), message), false);
     }
 }
