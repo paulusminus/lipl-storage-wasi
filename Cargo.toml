@@ -1,6 +1,10 @@
-[workspace]
-resolver = "3"
-members = ["crates/console-logger","crates/lipl-run", "crates/lipl-storage-fs-wasi"]
+[package]
+name = "lipl-storage-fs-wasi"
+version = "0.1.8"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
 
 [profile.release]
 lto = true
@@ -8,3 +12,10 @@ codegen-units = 1
 panic = "abort"
 opt-level = "s"
 strip = true
+
+[dependencies]
+etag = "4.0.0"
+futures = "0.3.32"
+serde = { version = "1.0.228", features = ["derive"] }
+toml = "1.1.2"
+wit-bindgen = { version = "0.59.0", features = ["bitflags", "futures-stream", "async-spawn", "inter-task-wakeup"] }

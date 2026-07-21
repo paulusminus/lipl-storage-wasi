@@ -1,5 +1,0 @@
-[metadata]
-authors = "Paul Min"
-description = "Interfaces for Lipl storage WASI"
-license = "MIT"
-source = "https://github.com/paulusminus/lipl-storage-wasi.git"

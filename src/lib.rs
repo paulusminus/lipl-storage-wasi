@@ -24,7 +24,6 @@ const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
 mod bindings {
     wit_bindgen::generate!({
-        path: "../../wit",
         world: "storage-fs",
         with: {
             "wasi:clocks/types@0.3.0": generate,
